@@ -1,83 +1,260 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
-namespace Server
+namespace Chat
 {
-    class Program
+    class Servidor
     {
-        const int PORT_NO = 5000;
-        const int TAM = 2048;
-        static Socket servidor = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-        static List<Socket> clientes = new List<Socket>();
-        static byte[] buffer = new byte[TAM];
+        private static TcpListener serverSocket = default(TcpListener);
+        private static Socket clientSocket = default(Socket);
+        private static readonly int maxClientsCount = 4;
+        private static readonly handleClient[] clients = new handleClient[maxClientsCount];
 
         static void Main(string[] args)
         {
-            Configurar();
-            Console.ReadLine();
-            Terminar();
+
+            Console.Title = "Servidor";
+
+            serverSocket = new TcpListener(IPAddress.Any, 7777);
+            clientSocket = default(Socket);
+            serverSocket.Start();
+
+            while (true)
+            {
+                Console.WriteLine("Esperando conexões...");
+                clientSocket = serverSocket.AcceptSocket();
+                Console.WriteLine("Conectado!");
+                int i = 0;
+                for (i = 0; i < maxClientsCount; i++)
+                {
+                    if (clients[i] == null)
+                    {
+                        (clients[i] = new handleClient()).startClient(clientSocket, clients);
+                        break;
+                    }
+                }
+
+                if (i == maxClientsCount)
+                {
+                    StreamWriter ots = new StreamWriter(new NetworkStream(clientSocket));
+                    ots.AutoFlush = true;
+                    ots.WriteLine("*** Servidor Cheio ***");
+                    ots.Close();
+                    clientSocket.Close();
+                }
+            }
+        }
+    }
+
+    public class handleClient
+    {
+        private Socket clientSocket;
+        private handleClient[] clients;
+        private int maxClientsCount;
+        private String clientName;
+        private StreamReader ins;
+        private StreamWriter ots;
+        private String palavra;
+        private int jogadorDaVez;
+        
+        public void startClient(Socket inClientSocket, handleClient[] clients)
+        {
+            this.clientSocket = inClientSocket;
+            this.clients = clients;
+            this.maxClientsCount = clients.Length;
+
+            ots = new StreamWriter(new NetworkStream(clientSocket));
+            ots.AutoFlush = true;
+
+            if (inClientSocket.Equals(clients[0].clientSocket))
+            {
+                ots.WriteLine("*** Voce e o mestre ***");
+                clients[0].jogadorDaVez = 1;
+            }
+
+            Thread ctThread = new Thread(Jogo);
+            ctThread.Start();
         }
 
-        private static void Configurar()
+        private void Jogo()
         {
-            servidor.Bind(new IPEndPoint(IPAddress.Any, PORT_NO));
-            Console.WriteLine("Listening...");
-            servidor.Listen(0);
-            servidor.BeginAccept(Aceitar, null);
-            Console.WriteLine("Configuração terminada");
-        }
+            int maxClientsCount = this.maxClientsCount;
+            handleClient[] clients = this.clients;
 
-        private static void Aceitar(IAsyncResult ar)
-        {
-            Socket novo;
             try
             {
-                novo = servidor.EndAccept(ar);
-            }
-            catch (ObjectDisposedException) 
-            {
-                return;
-            }
-            clientes.Add(novo);
-            novo.BeginReceive(buffer, 0, TAM, SocketFlags.None, Receber, novo);
-            Console.WriteLine("Novo cliente conectado");
-            servidor.BeginAccept(Aceitar, null);
-        }
+                ins = new StreamReader(new NetworkStream(clientSocket));
+                ots = new StreamWriter(new NetworkStream(clientSocket));
+                ots.AutoFlush = true;
+                String name;
 
-        private static void Receber(IAsyncResult ar) 
-        {
-            Socket socket = (Socket)ar.AsyncState;
-            int receber;
+                ots.WriteLine("*** Informe seu nome ***");
+                name = ins.ReadLine().Trim();
 
-            try
-            {
-                receber = socket.EndReceive(ar);
-            }
-            catch (SocketException)
-            {
-                Console.WriteLine("Cliente desconectado");
-                socket.Close();
-                clientes.Remove(socket);
-                return;
-            }
-            byte[] pacote = new byte[receber];
-            Array.Copy(buffer, pacote, receber);
-            string texto = Encoding.ASCII.GetString(pacote);
-            Console.WriteLine("Texto recebido: " + texto);
+                Console.WriteLine("Novo usuario: " + name);
+                ots.WriteLine("*** Ola " + name + " ***\n*** Para sair digite /quit ***");
 
-        }
+                lock (this)
+                {
+                    for (int i = 0; i < maxClientsCount; i++)
+                    {
+                        if (clients[i] != null && clients[i] == this)
+                        {
+                            clientName = name;
+                            break;
+                        }
+                    }
 
-        private static void Terminar()
-        {
-            foreach (Socket cliente in clientes)
-            {
-                cliente.Shutdown(SocketShutdown.Both);
-                cliente.Close();
+                    for (int i = 0; i < maxClientsCount; i++)
+                    {
+                        if (clients[i] != null && clients[i] != this)
+                        {
+                            clients[i].ots.WriteLine("*** Novo usuario entrou: " + name + " ***");
+                        }
+                    }
+                }
+
+                if (clientSocket.Equals(clients[0].clientSocket))
+                {
+                    ots.WriteLine("***Informe a palavra do jogo: ***");
+                    palavra = ins.ReadLine();
+                    Console.WriteLine("***Palavra do jogo: " + palavra + "***");
+                }
+
+                while (true)
+                {
+                    //Console.WriteLine(jogadorDaVez);
+                    //Console.WriteLine(clients.Length);
+                    if (clientSocket.Equals(clients[clients[0].jogadorDaVez].clientSocket) || clientSocket.Equals(clients[0].clientSocket))
+                    {
+                        if (clientSocket.Equals(clients[clients[0].jogadorDaVez].clientSocket))
+                        {
+                            ots.WriteLine("***Jogador da vez !***\n***Faca a pergunta: ***");
+                            String pergunta = ins.ReadLine();
+
+                            if (pergunta.StartsWith("/quit"))
+                            {
+                                break;
+                            }
+
+                            else
+                            {
+                                lock (this)
+                                {
+                                    for (int i = 0; i < maxClientsCount; i++)
+                                    {
+                                        if (clients[i] != null && clients[i] != null)
+                                            clients[i].ots.WriteLine("*** O usuario " + name + " perguntou: " + pergunta+ "***");
+
+                                    }
+
+                                    clients[0].ots.WriteLine("***Digite a resposta: ***");
+                                    String resposta = clients[0].ins.ReadLine();
+
+                                    for (int i = 0; i < maxClientsCount; i++)
+                                    {
+                                        if (clients[i] != null && clients[i] != null)
+                                            clients[i].ots.WriteLine("*** Mestre respondeu: " + resposta+ "***");
+                                    }
+
+                                    ots.WriteLine("***Faca o chute:***");
+                                    String chute = this.ins.ReadLine();
+
+                                    if (chute.ToLower() == clients[0].palavra.ToLower())
+                                    {
+                                        Console.WriteLine("***Palavra adivinhada***");
+                                        for (int i = 0; i < maxClientsCount; i++)
+                                        {
+                                            if (clients[i] != null && clients[i] != null)
+                                                clients[i].ots.WriteLine("*** O usuario " + name + " acertou a palavra " + palavra + " e o VENCEDOR ***");
+
+                                        }
+
+                                        using (var writer = new StreamWriter("/home/erica/Downloads/guessWho-master (1)/guessWho-master/Server/pontos.txt", true))
+                                        {
+                                            DateTime dt = DateTime.Now;
+                                            writer.WriteLine("Jogo " + dt.ToString("yyyy/MM/dd HH:mm"));
+                                            writer.WriteLine("Jogadores: ");
+
+                                            writer.WriteLine("Mestre: " + clients[0].clientName);
+
+                                            for (int i = 1; i < maxClientsCount; i++)
+                                            {
+                                                if (clients[i] != null)
+                                                    writer.WriteLine("Jogador " + i + ": " + clients[i].clientName);
+                                            }
+
+                                            writer.WriteLine("Jogador " + clients[clients[0].jogadorDaVez].clientName + " ganhou!\n\n");
+
+                                        }
+                                    }
+                                    else
+                                    {
+                                        for (int i = 0; i < maxClientsCount; i++)
+                                        {
+                                            if (clients[i] != null && clients[i] != null)
+                                                clients[i].ots.WriteLine("*** O usuario " + name + " errou a palavra");
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if (clientSocket.Equals(clients[clients[0].jogadorDaVez].clientSocket))
+                        {
+                            clients[0].jogadorDaVez++;
+                            if (clients[0].jogadorDaVez >= clients.Length)
+                                clients[0].jogadorDaVez = 1;
+                        }
+                    }
+
+                    else
+                    {
+                        String line = ins.ReadLine();
+                        ots.WriteLine("*** Aguarde sua vez! ***");
+                    }
+                }
+
+                Console.WriteLine("Usuario " + name + " se desconectou");
+                lock (this)
+                {
+                    for (int i = 0; i < maxClientsCount; i++)
+                    {
+                        if (clients[i] != null && clients[i] != null)
+                        {
+                            clients[i].ots.WriteLine("*** O usuario " + name + " saiu ***");
+                        }
+                    }
+                }
+                ots.WriteLine("*** Ate logo " + name + " ***");
+
+                lock (this)
+                {
+                    for (int i = 0; i < maxClientsCount; i++)
+                    {
+                        if (clients[i] == this)
+                        {
+                            clients[i] = null;
+                        }
+                    }
+                }
+                ins.Close();
+                ots.Close();
+                clientSocket.Close();
+
             }
-            servidor.Close();
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+            }
+        
         }
     }
 }

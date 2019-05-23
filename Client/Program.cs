@@ -1,71 +1,73 @@
-using System;
+﻿using System;
+using System.IO;
 using System.Net.Sockets;
-using System.Text;
-using System.Net;
+using System.Threading;
 
-namespace Client
-{
-    class Program
-    {
-        static readonly Socket Cliente = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-        const int PORT_NO = 5000;
+class Cliente {
+    private static TcpClient client;
+    private static StreamReader ins;
+    private static StreamWriter ots;
+    
 
-        static void Main(string[] args) 
-        {
-            ConectarServidor();
-            Conexao();
+    static void Main(string[] args) {
+
+        Console.Title = "Cliente";
+
+        try {
+            client = new TcpClient("127.0.0.1", 7777);
+            ins = new StreamReader(client.GetStream());
+            ots = new StreamWriter(client.GetStream());
+            ots.AutoFlush = true;
+        } catch (Exception e) {
+            Console.WriteLine(e.ToString());
         }
 
-        private static void ConectarServidor()
-        {
-            int conex = 0;
-            while (!Cliente.Connected)
-            {
-                try
-                {
-                    conex++;
-                    Console.WriteLine("Conexão " + conex);
-                    Cliente.Connect(IPAddress.Loopback, PORT_NO);
+        if (client != null && ots != null && ins != null) {
+            try {
+                cThread ct = new cThread(client, ins, ots);
+                Thread ctThread = new Thread(ct.run);
+                ctThread.Start();
+
+                while (!ct.closed) {
+                    string msg = Console.ReadLine().Trim();
+                    ots.WriteLine(msg);
                 }
-                catch (SocketException)
-                {
-                    Console.WriteLine("Erro de socket");
-                }
-
-                Console.WriteLine("Conectado");
+                ots.Close();
+                ins.Close();
+                client.Close();
+            } catch (Exception e) {
+                Console.WriteLine(e.ToString());
             }
-        }
-
-        private static void Conexao() 
-        {
-            while (true)
-            {
-                Enviar();
-                Resposta();
-            }
-        }
-
-        private static void Enviar()
-        {
-            //Dados para enviar para o servidor
-            Console.Write("Digite uma mensagem: ");
-            string mensagem = Console.ReadLine();
-            string textToSend = mensagem;
-
-            byte[] bytesToSend = ASCIIEncoding.ASCII.GetBytes(textToSend);
-            Cliente.Send(bytesToSend, 0, bytesToSend.Length, SocketFlags.None);
-        }
-
-        private static void Resposta(){ 
-            //Le a resposta
-            byte[] buffer = new byte[2048];
-            int resposta = Cliente.Receive(buffer, SocketFlags.None);
-            if (resposta == 0)
-                return;
-            var dado = new byte[resposta];
-            Array.Copy(buffer, dado, resposta);
-            string texto = Encoding.ASCII.GetString(dado);
-            Console.WriteLine("Mensagem recebida: "+texto);
         }
     }
+}
+
+class cThread {
+
+    public bool closed = false;
+    private TcpClient client;
+    private StreamReader ins;
+    private StreamWriter ots;
+
+    public cThread(TcpClient client, StreamReader ins, StreamWriter ots) {
+        this.client = client;
+        this.ins = ins;
+        this.ots = ots;
+    } 
+    
+    public void run() {
+        String responseLine;
+        try {
+            while((responseLine = ins.ReadLine()) != null) {
+                Console.WriteLine(responseLine);
+                if(responseLine.IndexOf("*** Ate logo") != -1) {
+                    break;
+                }
+            }
+            closed = true;
+        } catch (Exception e) {
+            Console.WriteLine(e.ToString());
+        }
+        Environment.Exit(0);
+    } 
 }

@@ -693,11 +693,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/home/rodrigo/Documentos/Faculdade/LP/2019-1/whoAmI-Jogo/Client/Client.csproj",
+      "projectUniqueName": "/home/rodrigo/Documentos/Faculdade/LP/guessWhoIAm/Client/Client.csproj",
       "projectName": "Client",
-      "projectPath": "/home/rodrigo/Documentos/Faculdade/LP/2019-1/whoAmI-Jogo/Client/Client.csproj",
+      "projectPath": "/home/rodrigo/Documentos/Faculdade/LP/guessWhoIAm/Client/Client.csproj",
       "packagesPath": "/home/rodrigo/.nuget/packages/",
-      "outputPath": "/home/rodrigo/Documentos/Faculdade/LP/2019-1/whoAmI-Jogo/Client/obj/",
+      "outputPath": "/home/rodrigo/Documentos/Faculdade/LP/guessWhoIAm/Client/obj/",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "/home/rodrigo/.nuget/NuGet/NuGet.Config"

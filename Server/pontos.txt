@@ -1,0 +1,27 @@
+Jogo 2019/05/22
+Jogadores: 
+Mestre: Rodrigo
+Jogador 1: kina
+Jogador 2: shu
+Jogador 3: erica
+Jogador shu ganhou!
+
+
+Jogo 2019/05/22 17:00
+Jogadores: 
+Mestre: kina
+Jogador 1: shu
+Jogador 2: chico
+Jogador 3: poti
+Jogador shu ganhou!
+
+
+Jogo 2019/05/22 17:21
+Jogadores: 
+Mestre: Rodrigo
+Jogador 1: Erica
+Jogador 2: samsung
+Jogador 3: nome
+Jogador samsung ganhou!
+
+
